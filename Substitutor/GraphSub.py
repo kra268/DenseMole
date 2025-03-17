@@ -1,9 +1,11 @@
-import os, sys
+import os
+import sys
 sys.path.append('.')
 import networkx as nx
 import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
+from utils import calculate_second_node_coords, check_colliding_nodes
 
 
 def read_gaussian_input(file_path):
@@ -123,70 +125,101 @@ def display_molecular_graph_3d(G):
     plt.show()
 
 
-def calculate_relative_positions(central_atom_coords, bond_length, bond_angle):
+def create_functional_group_graph(functional_group, bond_lengths, bond_angles):
     """
-    Calculates the relative positions of atoms in a functional group.
+    Creates a graph representing the functional group.
 
     Parameters:
-    central_atom_coords (tuple): Coordinates of the central atom.
-    bond_length (float): Bond length between the central atom and the new atoms.
-    bond_angle (float): Bond angle in degrees.
+    functional_group (list): A list of atomic symbols in the functional group.
+    bond_lengths (dict): A dictionary of bond lengths between atoms.
+    bond_angles (dict): A dictionary of bond angles between atoms.
 
     Returns:
-    list: A list of tuples containing the relative coordinates of the new atoms.
+    networkx.Graph: A graph representing the functional group.
     """
-    x0, y0, z0 = central_atom_coords
-    bond_angle_rad = np.radians(bond_angle)
+    G = nx.Graph()
 
-    # Calculate positions for a linear functional group (e.g., CO2)
-    dx = bond_length * np.cos(bond_angle_rad)
-    dy = bond_length * np.sin(bond_angle_rad)
+    # Add nodes (atoms) to the graph
+    for i, atom_symbol in enumerate(functional_group):
+        G.add_node(i, symbol=atom_symbol, coords=(0.0, 0.0, 0.0))  # Placeholder coordinates
 
-    # Positions for two atoms in a linear arrangement
-    pos1 = (x0 + dx, y0 + dy, z0)
-    pos2 = (x0 - dx, y0 - dy, z0)
+    # Add edges (bonds) between atoms
+    for (i, j), length in bond_lengths.items():
+        G.add_edge(i, j, length=length)
 
-    return [pos1, pos2]
+    # Calculate coordinates for the functional group
+    for i in G.nodes:
+        if i == 0:
+            continue  # The first atom is at the origin
+        for neighbor in G.neighbors(i):
+            if neighbor < i:
+                # Calculate coordinates based on bond length and angle
+                direction_vector = np.random.rand(3) - 0.5  # Random initial direction
+                direction_vector = direction_vector / np.linalg.norm(direction_vector)
+                new_coords = calculate_second_node_coords(G, G.nodes[neighbor]['coords'], G.edges[i, neighbor]['length'], direction_vector)
+                G.nodes[i]['coords'] = new_coords
+
+    return G
 
 
-def substitute_with_functional_group(G, index, functional_group, bond_length, bond_angle):
+def substitute_with_functional_group(G, index, functional_group_graph, attachment_atom, threshold=0.1):
     """
-    Substitutes an atom at the specified index with a functional group.
+    Substitutes an atom at the specified index with a functional group, ensuring no collisions.
 
     Parameters:
     G (networkx.Graph): The molecular graph.
     index (int): The index of the atom to replace.
-    functional_group (list): A list of atomic symbols in the functional group.
-    bond_length (float): Bond length between the central atom and the new atoms.
-    bond_angle (float): Bond angle in degrees.
+    functional_group_graph (networkx.Graph): The graph representing the functional group.
+    attachment_atom (int): The index of the atom in the functional group to attach to the molecule.
+    threshold (float): Minimum distance to avoid collisions (default: 0.1 Å).
 
     Returns:
     networkx.Graph: The modified graph with the functional group added.
     """
-    # Get the coordinates of the atom to replace
-    central_atom_coords = G.nodes[index]['coords']
+    # Get the coordinates of the atom being replaced
+    replaced_atom_coords = G.nodes[index]['coords']
 
-    # Calculate the relative positions of the new atoms
-    relative_positions = calculate_relative_positions(central_atom_coords, bond_length, bond_angle)
+    # Replace the atom with the attachment atom of the functional group
+    G.nodes[index]['symbol'] = functional_group_graph.nodes[attachment_atom]['symbol']
+    G.nodes[index]['coords'] = replaced_atom_coords
 
-    # Remove the atom at the specified index
-    G.remove_node(index)
-
-    # Add the functional group to the graph
+    # Add the remaining atoms of the functional group
     new_node_indices = []
-    for i, atom_symbol in enumerate(functional_group):
+    for i in functional_group_graph.nodes:
+        if i == attachment_atom:
+            continue  # Skip the attachment atom (already replaced)
+
+        # Calculate coordinates for the new node relative to the replaced atom's coordinates
+        bond_length = functional_group_graph.edges[attachment_atom, i]['length']
+        direction_vector = functional_group_graph.nodes[i]['coords']  # Relative coordinates from the functional group graph
+        new_coords = (
+            replaced_atom_coords[0] + direction_vector[0] * bond_length,
+            replaced_atom_coords[1] + direction_vector[1] * bond_length,
+            replaced_atom_coords[2] + direction_vector[2] * bond_length
+        )
+
+        # Check for collisions
+        if check_colliding_nodes(G, threshold):
+            raise ValueError("Collision detected. Could not find a valid position for the new node.")
+
+        # Add the new node
         new_index = max(G.nodes) + 1 if G.nodes else 0  # Assign a new unique index
-        G.add_node(new_index, symbol=atom_symbol, coords=relative_positions[i])
+        G.add_node(new_index, symbol=functional_group_graph.nodes[i]['symbol'], coords=new_coords)
         new_node_indices.append(new_index)
 
     # Connect the functional group to the rest of the molecule
     for neighbor in G.nodes:
-        if neighbor != index:  # Avoid connecting to the removed node
-            G.add_edge(new_node_indices[0], neighbor)  # Connect the first atom of the functional group
+        if neighbor != index:  # Avoid connecting to the replaced node
+            G.add_edge(index, neighbor)  # Connect the attachment atom to the rest of the molecule
 
     # Add edges within the functional group
-    for i in range(1, len(new_node_indices)):
-        G.add_edge(new_node_indices[0], new_node_indices[i])
+    for i, j in functional_group_graph.edges:
+        if i == attachment_atom:
+            G.add_edge(index, new_node_indices[j - 1])
+        elif j == attachment_atom:
+            G.add_edge(index, new_node_indices[i - 1])
+        else:
+            G.add_edge(new_node_indices[i - 1], new_node_indices[j - 1])
 
     return G
 
@@ -208,20 +241,23 @@ if __name__ == "__main__":
     print("Molecular graph displayed. Please inspect the graph and specify the index of the atom to replace.")
     index_to_replace = int(input("Enter the index of the atom to replace: "))
 
-    # Define the functional group
-    functional_group = input("Enter the functional group (e.g., 'CO2'): ").strip().upper()
+    # Define the functional group (e.g., CO2)
+    functional_group = ['C', 'O', 'O']
+    bond_lengths = {(0, 1): 1.16, (0, 2): 1.16}  # C=O bond lengths
+    bond_angles = {(0, 1, 2): 180.0}  # Linear geometry for CO2
 
-    # Define bond length and angle for the functional group
-    if functional_group == 'CO2':
-        bond_length = 1.16  # C=O bond length in Angstroms
-        bond_angle = 180.0  # Linear geometry for CO2
-    else:
-        # Default values for other functional groups
-        bond_length = 1.0  # Adjust as needed
-        bond_angle = 120.0  # Adjust as needed
+    # Create the functional group graph
+    functional_group_graph = create_functional_group_graph(functional_group, bond_lengths, bond_angles)
+
+    # Specify the attachment atom in the functional group (e.g., C in CO2)
+    attachment_atom = 0  # Index of the attachment atom in the functional group
 
     # Substitute the specified atom with the functional group
-    G = substitute_with_functional_group(G, index_to_replace, list(functional_group), bond_length, bond_angle)
+    try:
+        G = substitute_with_functional_group(G, index_to_replace, functional_group_graph, attachment_atom)
+    except ValueError as e:
+        print(e)
+        sys.exit(1)
 
     # Display the modified molecular graph in 3D
     display_molecular_graph_3d(G)
