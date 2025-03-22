@@ -111,16 +111,21 @@ def check_colliding_nodes(G, threshold=0.5):
 
     # Compare each pair of nodes
     for i in range(len(nodes)):
-        for j in range(i + 1, len(nodes)):
-            node1, data1 = nodes[i]
-            node2, data2 = nodes[j]
+        node1, data1 = nodes[i]
+        if 'coords' not in data1 or data1['coords'] is None:
+            raise ValueError(f"Node {node1} is missing the 'coords' attribute or it is None.")
 
-            # Get coordinates of the two nodes
-            x1, y1, z1 = data1['coords']
+        x1, y1, z1 = data1['coords']
+
+        for j in range(i + 1, len(nodes)):
+            node2, data2 = nodes[j]
+            if 'coords' not in data2 or data2['coords'] is None:
+                raise ValueError(f"Node {node2} is missing the 'coords' attribute or it is None.")
+
             x2, y2, z2 = data2['coords']
 
             # Calculate Euclidean distance
-            distance = euclidean_distance([(x1, y1, z1), (x2, y2, z2)])
+            distance = np.sqrt((x2 - x1)**2 + (y2 - y1)**2 + (z2 - z1)**2)
 
             # Check if the distance is below the threshold
             if distance < threshold:
