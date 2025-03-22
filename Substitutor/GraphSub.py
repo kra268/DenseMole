@@ -73,7 +73,7 @@ def create_molecular_graph(molecule):
 
     # Add nodes (atoms) to the graph
     for i, (atom, coords) in enumerate(molecule):
-        G.add_node(i, symbol=atom, coords=coords)
+        G.add_node(i, symbol=atom, coords=coords)  # Ensure 'symbol' attribute is added
 
     # Add edges (bonds) between atoms based on distance
     for i in range(len(molecule)):
@@ -108,13 +108,17 @@ def display_molecular_graph_3d(G):
     for i in G.nodes:
         x, y, z = pos[i]
         ax.scatter(x, y, z, color='lightblue', s=1000, edgecolor='black')
-        ax.text(x, y, z, labels[i], fontsize=12, ha='center', va='center')
 
     # Plot edges
     for i, j in G.edges:
         x1, y1, z1 = pos[i]
         x2, y2, z2 = pos[j]
         ax.plot([x1, x2], [y1, y2], [z1, z2], color='black')
+
+    # Add labels to nodes
+    for i in G.nodes:
+        x, y, z = pos[i]
+        ax.text(x, y, z, labels[i], fontsize=12, ha='center', va='center', color='black')
 
     # Set axis labels
     ax.set_xlabel('X')
@@ -141,7 +145,7 @@ def create_functional_group_graph(functional_group, bond_lengths, bond_angles):
 
     # Add nodes (atoms) to the graph
     for i, atom_symbol in enumerate(functional_group):
-        G.add_node(i, symbol=atom_symbol, coords=(0.0, 0.0, 0.0))  # Placeholder coordinates
+        G.add_node(i, symbol=atom_symbol, coords=(0.0, 0.0, 0.0))  # Ensure 'symbol' attribute is added
 
     # Add edges (bonds) between atoms
     for (i, j), length in bond_lengths.items():
@@ -156,7 +160,11 @@ def create_functional_group_graph(functional_group, bond_lengths, bond_angles):
                 # Calculate coordinates based on bond length and angle
                 direction_vector = np.random.rand(3) - 0.5  # Random initial direction
                 direction_vector = direction_vector / np.linalg.norm(direction_vector)
-                new_coords = calculate_second_node_coords(G, G.nodes[neighbor]['coords'], G.edges[i, neighbor]['length'], direction_vector)
+                new_coords = (
+                    G.nodes[neighbor]['coords'][0] + direction_vector[0] * G.edges[i, neighbor]['length'],
+                    G.nodes[neighbor]['coords'][1] + direction_vector[1] * G.edges[i, neighbor]['length'],
+                    G.nodes[neighbor]['coords'][2] + direction_vector[2] * G.edges[i, neighbor]['length']
+                )
                 G.nodes[i]['coords'] = new_coords
 
     return G
@@ -180,7 +188,7 @@ def substitute_with_functional_group(G, index, functional_group_graph, attachmen
     replaced_atom_coords = G.nodes[index]['coords']
 
     # Replace the atom with the attachment atom of the functional group
-    G.nodes[index]['symbol'] = functional_group_graph.nodes[attachment_atom]['symbol']
+    G.nodes[index]['symbol'] = functional_group_graph.nodes[attachment_atom]['symbol']  # Ensure 'symbol' is updated
     G.nodes[index]['coords'] = replaced_atom_coords
 
     # Add the remaining atoms of the functional group
@@ -199,12 +207,13 @@ def substitute_with_functional_group(G, index, functional_group_graph, attachmen
         )
 
         # Check for collisions
-        if check_colliding_nodes(G, threshold):
+        colliding_pairs = check_colliding_nodes(G, threshold)
+        if colliding_pairs:
             raise ValueError("Collision detected. Could not find a valid position for the new node.")
 
         # Add the new node
         new_index = max(G.nodes) + 1 if G.nodes else 0  # Assign a new unique index
-        G.add_node(new_index, symbol=functional_group_graph.nodes[i]['symbol'], coords=new_coords)
+        G.add_node(new_index, symbol=functional_group_graph.nodes[i]['symbol'], coords=new_coords)  # Ensure 'symbol' is added
         new_node_indices.append(new_index)
 
     # Connect the functional group to the rest of the molecule
