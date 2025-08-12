@@ -1,11 +1,9 @@
-import os
 import sys
 sys.path.append('.')
 import networkx as nx
 import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
-from utils import calculate_second_node_coords, check_colliding_nodes
 
 
 def read_gaussian_input(file_path):
@@ -192,43 +190,42 @@ def substitute_with_functional_group(G, index, functional_group_graph, attachmen
     G.nodes[index]['coords'] = replaced_atom_coords
 
     # Add the remaining atoms of the functional group
-    new_node_indices = []
+    node_map = {}
+    attachment_coords = np.array(functional_group_graph.nodes[attachment_atom]['coords'])
+
     for i in functional_group_graph.nodes:
         if i == attachment_atom:
             continue  # Skip the attachment atom (already replaced)
 
-        # Calculate coordinates for the new node relative to the replaced atom's coordinates
-        bond_length = functional_group_graph.edges[attachment_atom, i]['length']
-        direction_vector = functional_group_graph.nodes[i]['coords']  # Relative coordinates from the functional group graph
-        new_coords = (
-            replaced_atom_coords[0] + direction_vector[0] * bond_length,
-            replaced_atom_coords[1] + direction_vector[1] * bond_length,
-            replaced_atom_coords[2] + direction_vector[2] * bond_length
-        )
+        # Translate functional group coordinates so that the attachment atom
+        # coincides with the replaced atom's position. No extra scaling is
+        # applied so the original bond lengths defined in the functional group
+        # are preserved.
+        direction_vector = np.array(functional_group_graph.nodes[i]['coords']) - attachment_coords
+        new_coords = tuple(np.array(replaced_atom_coords) + direction_vector)
 
-        # Check for collisions
-        colliding_pairs = check_colliding_nodes(G, threshold)
-        if colliding_pairs:
-            raise ValueError("Collision detected. Could not find a valid position for the new node.")
+        # Ensure the new atom does not collide with existing atoms in the
+        # molecule.
+        for node in G.nodes:
+            existing_coords = np.array(G.nodes[node]['coords'])
+            if np.linalg.norm(existing_coords - np.array(new_coords)) < threshold:
+                raise ValueError(
+                    "Collision detected. Could not find a valid position for the new node."
+                )
 
-        # Add the new node
-        new_index = max(G.nodes) + 1 if G.nodes else 0  # Assign a new unique index
-        G.add_node(new_index, symbol=functional_group_graph.nodes[i]['symbol'], coords=new_coords)  # Ensure 'symbol' is added
-        new_node_indices.append(new_index)
+        # Add the new node and remember its mapping
+        new_index = max(G.nodes) + 1 if G.nodes else 0
+        G.add_node(new_index, symbol=functional_group_graph.nodes[i]['symbol'], coords=new_coords)
+        node_map[i] = new_index
 
-    # Connect the functional group to the rest of the molecule
-    for neighbor in G.nodes:
-        if neighbor != index:  # Avoid connecting to the replaced node
-            G.add_edge(index, neighbor)  # Connect the attachment atom to the rest of the molecule
-
-    # Add edges within the functional group
+    # Add edges within the functional group using the mapping created above
     for i, j in functional_group_graph.edges:
         if i == attachment_atom:
-            G.add_edge(index, new_node_indices[j - 1])
+            G.add_edge(index, node_map[j])
         elif j == attachment_atom:
-            G.add_edge(index, new_node_indices[i - 1])
+            G.add_edge(index, node_map[i])
         else:
-            G.add_edge(new_node_indices[i - 1], new_node_indices[j - 1])
+            G.add_edge(node_map[i], node_map[j])
 
     return G
 
