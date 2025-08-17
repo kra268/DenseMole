@@ -182,14 +182,20 @@ def substitute_with_functional_group(G, index, functional_group_graph, attachmen
     Returns:
     networkx.Graph: The modified graph with the functional group added.
     """
-    # Get the coordinates of the atom being replaced
+    # Get the coordinates of the atom being replaced and store its current neighbors
     replaced_atom_coords = G.nodes[index]['coords']
+    original_neighbors = list(G.neighbors(index))
 
     # Replace the atom with the attachment atom of the functional group
-    G.nodes[index]['symbol'] = functional_group_graph.nodes[attachment_atom]['symbol']  # Ensure 'symbol' is updated
+    G.nodes[index]['symbol'] = functional_group_graph.nodes[attachment_atom]['symbol']
     G.nodes[index]['coords'] = replaced_atom_coords
 
+    # Map functional group node indices to graph node indices
+    node_mapping = {attachment_atom: index}
+    next_index = max(G.nodes) + 1 if G.nodes else 0
+
     # Add the remaining atoms of the functional group
+
     node_map = {}
     attachment_coords = np.array(functional_group_graph.nodes[attachment_atom]['coords'])
 
