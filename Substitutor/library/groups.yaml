@@ -1,0 +1,39 @@
+# Built-in substituent library. Each entry is a '*'-tagged SMILES giving the
+# functional group, with '*' marking the attachment point (the atom removed
+# from the host molecule is replaced by whatever '*' is bonded to).
+#
+# Add your own entries here, or point the batch runner at a separate file
+# with the same format via `substituent_library:` in a batch config.
+
+- name: methyl
+  smiles: "*C"
+- name: hydroxyl
+  smiles: "*O"
+- name: amino
+  smiles: "*N"
+- name: fluoro
+  smiles: "*F"
+- name: chloro
+  smiles: "*Cl"
+- name: bromo
+  smiles: "*Br"
+- name: trifluoromethyl
+  smiles: "*C(F)(F)F"
+- name: nitro
+  smiles: "*[N+](=O)[O-]"
+- name: cyano
+  smiles: "*C#N"
+- name: carboxyl
+  smiles: "*C(=O)O"
+- name: formyl
+  smiles: "*C=O"
+- name: methoxy
+  smiles: "*OC"
+- name: ethyl
+  smiles: "*CC"
+- name: phenyl
+  smiles: "*c1ccccc1"
+- name: thiol
+  smiles: "*S"
+- name: trimethylsilyl
+  smiles: "*[Si](C)(C)C"
