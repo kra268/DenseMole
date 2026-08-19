@@ -1,20 +1,24 @@
 """Command-line entry point for DenseMole.
 
-    python -m Substitutor.cli substitute host.gjf --atom 3 --group "*O" -o out.gjf
-    python -m Substitutor.cli combine a.gjf b.gjf --atom-a 0 --atom-b 0 --distance 3.5 -o dimer.gjf
-    python -m Substitutor.cli batch config.yaml
+    python -m cli substitute host.gjf --atom 3 --group "*O" -o out.gjf
+    python -m cli combine a.gjf b.gjf --atom-a 0 --atom-b 0 --distance 3.5 -o dimer.gjf
+    python -m cli batch config.yaml
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import click
+import yaml
 from rdkit import RDLogger
 
-from Substitutor.batch.runner import run_batch
-from Substitutor.core.combine import combine
-from Substitutor.core.molecule import job_to_mol, mol_to_atoms
-from Substitutor.core.substitute import substitute
-from Substitutor.io.gaussian import read_gaussian, write_gaussian
-from Substitutor.io.xyz import write_xyz
+from common.gaussian import read_gaussian, write_gaussian
+from common.molecule import job_to_mol, mol_to_atoms
+from common.xyz import write_xyz
+from Combiner.batch import run_combine_batch
+from Combiner.combine import combine
+from Substitutor.batch import run_substitute_batch
+from Substitutor.substitute import substitute
 
 RDLogger.DisableLog("rdApp.*")
 
@@ -73,9 +77,21 @@ cli.add_command(combine_cmd, name="combine")
 
 
 @cli.command()
-@click.argument("config", type=click.Path(exists=True))
-def batch(config):
-    manifest = run_batch(config)
+@click.argument("config_path", type=click.Path(exists=True))
+def batch(config_path):
+    with open(config_path) as fh:
+        config = yaml.safe_load(fh)
+
+    output_dir = Path(config.get("output_dir", "batch_output"))
+    job_type = config.get("job_type", "substitute")
+
+    if job_type == "substitute":
+        manifest = run_substitute_batch(config, output_dir)
+    elif job_type == "combine":
+        manifest = run_combine_batch(config, output_dir)
+    else:
+        raise click.ClickException(f"Unknown job_type: {job_type!r}")
+
     click.echo(f"Batch complete. Manifest: {manifest}")
 
 

@@ -10,7 +10,7 @@ from rdkit import Chem
 from rdkit.Chem import rdDetermineBonds
 from rdkit.Geometry import Point3D
 
-from Substitutor.io.gaussian import Atom, GaussianJob
+from common.gaussian import Atom, GaussianJob
 
 
 def atoms_to_mol(atoms: list[Atom], charge: int = 0) -> Chem.Mol:

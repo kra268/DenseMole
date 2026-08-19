@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from Substitutor.io.gaussian import Atom, GaussianJob
+from common.gaussian import Atom, GaussianJob
 
 
 def combine_atom_pair_distance(

@@ -6,9 +6,9 @@ two molecules into a single non-bonded complex.
 
 Chemistry is handled by RDKit (bond perception, 3D embedding of substituents,
 force-field relaxation), with a thin Gaussian `.gjf` reader/writer layered on
-top. See [Substitutor/core/substitute.py](Substitutor/core/substitute.py) for
-the substitution algorithm and [Substitutor/core/combine.py](Substitutor/core/combine.py)
-for molecule combination.
+top. See [Substitutor/substitute.py](Substitutor/substitute.py) for the
+substitution algorithm and [Combiner/combine.py](Combiner/combine.py) for
+molecule combination.
 
 ## Setup
 
@@ -24,7 +24,7 @@ pip install -r requirements.txt
 `*`-tagged SMILES functional group (`*` marks the attachment point):
 
 ```bash
-python -m Substitutor.cli substitute Substitutor/Example_Data/CH4.gjf \
+python -m cli substitute Example_Data/CH4.gjf \
     --atom 1 --group "*O" -o methanol.gjf
 ```
 
@@ -35,7 +35,7 @@ Pass `--atom` more than once to remove a whole existing multi-atom group
 of molecule B at a given distance from a chosen atom of molecule A:
 
 ```bash
-python -m Substitutor.cli combine a.gjf b.gjf \
+python -m cli combine a.gjf b.gjf \
     --atom-a 0 --atom-b 0 --distance 3.5 --tag-fragments -o complex.gjf
 ```
 
@@ -44,7 +44,7 @@ scan for combined molecules) from a YAML config, writing one `.gjf` per job
 plus a `manifest.csv`:
 
 ```bash
-python -m Substitutor.cli batch my_batch_config.yaml
+python -m cli batch my_batch_config.yaml
 ```
 
 See [Substitutor/library/groups.yaml](Substitutor/library/groups.yaml) for
@@ -53,13 +53,17 @@ the built-in substituent library (extendable/overridable per batch config).
 ## Layout
 
 ```
+cli.py                    # command-line entry point (substitute / combine / batch)
+common/                   # infrastructure shared by both domains
+  gaussian.py               # .gjf reader/writer
+  xyz.py                     # .xyz export for visual QC
+  molecule.py                 # GaussianJob <-> RDKit Mol bridge (bond perception)
 Substitutor/
-  io/gaussian.py    # .gjf reader/writer
-  io/xyz.py         # .xyz export for visual QC
-  core/molecule.py  # GaussianJob <-> RDKit Mol bridge (bond perception)
-  core/substitute.py # functional-group substitution
-  core/combine.py    # two-molecule non-bonded complex assembly
-  library/groups.yaml # built-in substituent library
-  batch/runner.py    # YAML-driven batch enumeration + manifest
-  cli.py              # command-line entry point
+  substitute.py              # functional-group substitution algorithm
+  batch.py                     # YAML-driven substitution batch runner
+  library/groups.yaml          # built-in substituent library
+Combiner/
+  combine.py                  # two-molecule non-bonded complex assembly
+  batch.py                      # YAML-driven combination batch runner
+Example_Data/                # example host molecules used by both domains
 ```
